@@ -5,18 +5,22 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.ListActivity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -29,30 +33,80 @@ import android.widget.AdapterView.OnItemClickListener;
 
 public class NoMem extends ListActivity {
 
-	static final ArrayList<String> NOTES = getNotes(3);
+	private ArrayList<Note> notes = getNotes(3);
+	protected static final int EDIT_NOTE_REQUEST_CODE = 100;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setListAdapter(new ArrayAdapter<String>(this, R.layout.notes, NOTES));
+		ArrayAdapter<Note> adapter = new ArrayAdapter<Note>(this, R.layout.notes, notes);
+		setListAdapter(adapter);
 		ListView lv = getListView();
 		lv.setTextFilterEnabled(true);
 
 		lv.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-				Log.d("DEBUG", "Element "+id+"/Position "+position);
+				Log.d("DEBUG", "Note ID: "+((Note)parent.getAdapter().getItem(position)).getId());
+				
+				// setting data for sub activity
+				Bundle b = new Bundle();
+				b.putString("title", ((Note)parent.getAdapter().getItem(position)).getTitle());
+				b.putString("body", ((Note)parent.getAdapter().getItem(position)).getBody());
+				b.putInt("id", ((Note)parent.getAdapter().getItem(position)).getId());
+				Intent i = new Intent(NoMem.this, NoteActivity.class);
+				i.putExtras(b);
+				
+				startActivityForResult(i, EDIT_NOTE_REQUEST_CODE);
 				Toast.makeText(getApplicationContext(), ((TextView) view).getText(), Toast.LENGTH_SHORT).show();
 			}
 		});
 	}
+	
+	private void addNote(Note note, Integer user_id) {
+		try {
+			HttpClient httpClient = new DefaultHttpClient();
+			URI uri = new URI("http://192.168.10.138:3000/notes");
+			
+			// setting up POST HTTP parameters
+			BasicHttpParams post_params = new BasicHttpParams();
+			post_params.setParameter("user_id", user_id);
+			post_params.setParameter("title", note.getTitle());
+			post_params.setParameter("body", note.getBody());
+			
+			HttpPost request = new HttpPost(uri);
+			request.addHeader("API-Key", getString(R.string.api_key));
+			request.addHeader("Accept", "application/json");
+			Log.d("DEBUG", uri.toString());
+			
+			HttpResponse response;
+			response = httpClient.execute(request);
+			int status = response.getStatusLine().getStatusCode();
 
-	public static ArrayList<String> getNotes(int user_id) {
-		ArrayList<String> notes = new ArrayList<String>();
+			if(status == HttpStatus.SC_OK) {
+				Log.d("DEBUG", "SUCCESS! \\o/");
+			}
+		} catch (ClientProtocolException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (URISyntaxException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+	}
+
+	private ArrayList<Note> getNotes(int user_id) {
+		ArrayList<Note> notes = new ArrayList<Note>();
 		try {
 			HttpClient httpClient = new DefaultHttpClient();
 			URI uri = new URI("http://192.168.10.138:3000/notes?user_id="+user_id);
 			HttpGet request = new HttpGet(uri);
 			request.addHeader("Accept", "application/json");
+			request.addHeader("User-Agent", "NoMem/Android");
+			request.addHeader("API-Key", "uw078U51s9qyG86FMiYc6660n6yPmBvkj8t1tFJq0b8Aah4251ulTWuZ8oRT7os8q4U0K7kXpRbY5SfH2H5l2aP7klSDv3gX");
 			Log.d("DEBUG", uri.toString());
 			HttpResponse response;
 			response = httpClient.execute(request);
@@ -69,10 +123,15 @@ public class NoMem extends ListActivity {
 					Log.d("DEBUG", "<jsonobject>\n"+json.toString()+"\n</jsonobject>");
 					JSONArray nameArray = json.names();
 					JSONArray valArray = json.toJSONArray(nameArray);
-					for(int i=0;i<valArray.length();i++) {
+					for(int i = 0 ; i < valArray.length() ; i++) {
 						Log.d("DEBUG", "<jsonname"+i+">\n"+nameArray.getString(i)+"\n</jsonname"+i+">\n"
-								+"<jsonvalue"+i+">\n"+valArray.getString(i)+"</jsonvalue"+i+">\n");
-						notes.add(valArray.getString(i));
+								+"<jsonvalue"+i+">\n"+valArray.getJSONArray(i)+"</jsonvalue"+i+">\n");
+						
+						String title = valArray.getJSONArray(i).getString(0);
+						String body = valArray.getJSONArray(i).getString(1);
+						Integer id = Integer.parseInt(nameArray.getString(i));
+						Log.d("DEBUG", "Note/"+id+" : "+title+"/"+body);
+						notes.add(new Note(id, title, body));
 					}
 
 			}
@@ -90,5 +149,32 @@ public class NoMem extends ListActivity {
 			e.printStackTrace();
 		}
 		return notes;
+	}
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+		if(requestCode == EDIT_NOTE_REQUEST_CODE && resultCode == NoteActivity.SUCCESS_RETURN_CODE) {
+			Bundle b = data.getExtras();
+			String title = b.getString("title");
+			String body = b.getString("body");
+			int id = b.getInt("id");
+			
+			Log.d("DEBUG", "Note/"+id+" : "+title+"/"+body);
+			
+			// finding the right note (maybe there is a better way to do this)
+			Iterator<Note> it = notes.iterator();
+			Note n = null;
+			
+			while(it.hasNext()) {
+				n = it.next();
+				if(n.getId() == id) {
+					n.setTitle(title);
+					n.setBody(body);
+					break;
+				}
+			}
+			
+			addNote(n, 3);
+		}
 	}
 }
