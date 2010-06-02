@@ -14,6 +14,7 @@ public class NoteActivity extends Activity {
 	
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		setContentView(R.layout.note);
 		
 		// getting data from main activity
 		Intent app_intent = getIntent();
@@ -21,8 +22,6 @@ public class NoteActivity extends Activity {
 		String title = data.getString("title");
 		String body = data.getString("body");
 		final int id = data.getInt("id");
-		
-		setContentView(R.layout.note);
 		
 		// setting title
 		final EditText titleView = (EditText)findViewById(R.id.titleId);

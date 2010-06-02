@@ -12,7 +12,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.BasicHttpParams;
 import org.json.JSONArray;
@@ -33,12 +33,17 @@ import android.widget.AdapterView.OnItemClickListener;
 
 public class NoMem extends ListActivity {
 
-	private ArrayList<Note> notes = getNotes(3);
+	private ArrayList<Note> notes;
+	private String apiKey;
 	protected static final int EDIT_NOTE_REQUEST_CODE = 100;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		
+		apiKey = getString(R.string.api_key); // for some reason this won't work outside of this method.
+		notes = getNotes(3);
+		
 		ArrayAdapter<Note> adapter = new ArrayAdapter<Note>(this, R.layout.notes, notes);
 		setListAdapter(adapter);
 		ListView lv = getListView();
@@ -53,7 +58,8 @@ public class NoMem extends ListActivity {
 				b.putString("title", ((Note)parent.getAdapter().getItem(position)).getTitle());
 				b.putString("body", ((Note)parent.getAdapter().getItem(position)).getBody());
 				b.putInt("id", ((Note)parent.getAdapter().getItem(position)).getId());
-				Intent i = new Intent(NoMem.this, NoteActivity.class);
+				
+				Intent i = new Intent(view.getContext(), NoteActivity.class);
 				i.putExtras(b);
 				
 				startActivityForResult(i, EDIT_NOTE_REQUEST_CODE);
@@ -65,18 +71,20 @@ public class NoMem extends ListActivity {
 	private void addNote(Note note, Integer user_id) {
 		try {
 			HttpClient httpClient = new DefaultHttpClient();
-			URI uri = new URI("http://192.168.10.138:3000/notes");
+			URI uri = new URI("http://192.168.32.110:3000/notes/"+note.getId());
 			
 			// setting up POST HTTP parameters
-			BasicHttpParams post_params = new BasicHttpParams();
-			post_params.setParameter("user_id", user_id);
-			post_params.setParameter("title", note.getTitle());
-			post_params.setParameter("body", note.getBody());
+			BasicHttpParams put_params = new BasicHttpParams();
+			put_params.setParameter("user_id", user_id);
+			put_params.setParameter("title", note.getTitle());
+			put_params.setParameter("body", note.getBody());
 			
-			HttpPost request = new HttpPost(uri);
-			request.addHeader("API-Key", getString(R.string.api_key));
+			HttpPut request = new HttpPut(uri);
+			request.addHeader("API-Key", apiKey);
 			request.addHeader("Accept", "application/json");
-			Log.d("DEBUG", uri.toString());
+			request.setParams(put_params);
+			
+			Log.d("DEBUG", put_params.toString());
 			
 			HttpResponse response;
 			response = httpClient.execute(request);
@@ -102,11 +110,11 @@ public class NoMem extends ListActivity {
 		ArrayList<Note> notes = new ArrayList<Note>();
 		try {
 			HttpClient httpClient = new DefaultHttpClient();
-			URI uri = new URI("http://192.168.10.138:3000/notes?user_id="+user_id);
+			URI uri = new URI("http://192.168.32.110:3000/notes?user_id="+user_id);
 			HttpGet request = new HttpGet(uri);
 			request.addHeader("Accept", "application/json");
 			request.addHeader("User-Agent", "NoMem/Android");
-			request.addHeader("API-Key", "uw078U51s9qyG86FMiYc6660n6yPmBvkj8t1tFJq0b8Aah4251ulTWuZ8oRT7os8q4U0K7kXpRbY5SfH2H5l2aP7klSDv3gX");
+			request.addHeader("API-Key", apiKey);
 			Log.d("DEBUG", uri.toString());
 			HttpResponse response;
 			response = httpClient.execute(request);
@@ -153,6 +161,7 @@ public class NoMem extends ListActivity {
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
+		Log.d("DEBUG", "Request code: "+requestCode+"/"+resultCode+"/"+data);
 		if(requestCode == EDIT_NOTE_REQUEST_CODE && resultCode == NoteActivity.SUCCESS_RETURN_CODE) {
 			Bundle b = data.getExtras();
 			String title = b.getString("title");
