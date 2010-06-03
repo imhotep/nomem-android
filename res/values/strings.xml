@@ -6,6 +6,6 @@
     <string name="ok_button">OK</string>
     <string name="cancel_button">Cancel</string>
     <string name="new_edit_note">New/Edit Note</string>
-    <string name="host">http://192.168.32.110:3000</string>
+    <string name="host">http://nomem.koalabs.org</string>
     <string name="api_key">uw078U51s9qyG86FMiYc6660n6yPmBvkj8t1tFJq0b8Aah4251ulTWuZ8oRT7os8q4U0K7kXpRbY5SfH2H5l2aP7klSDv3gX</string>
 </resources>

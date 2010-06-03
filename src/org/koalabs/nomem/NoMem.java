@@ -99,7 +99,8 @@ public class NoMem extends ListActivity {
 	};
 
 
-	private void addNote(Note note, Integer user_id) {
+	private void addNote(Note note) {
+		Integer user_id = 1;
 		try {
 			progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Updating note...", true);
 			HttpClient httpClient = new DefaultHttpClient();
@@ -109,9 +110,9 @@ public class NoMem extends ListActivity {
 			// setting up POST HTTP parameters
 			List<NameValuePair> putParams = new ArrayList<NameValuePair>(4);
 			putParams
-					.add(new BasicNameValuePair("user_id", user_id.toString()));
-			putParams.add(new BasicNameValuePair("title", note.getTitle()));
-			putParams.add(new BasicNameValuePair("body", note.getBody()));
+					.add(new BasicNameValuePair("note[user_id]", user_id.toString()));
+			putParams.add(new BasicNameValuePair("note[title]", note.getTitle()));
+			putParams.add(new BasicNameValuePair("note[body]", note.getBody()));
 
 			HttpPut request = new HttpPut(uri);
 			request.addHeader("API-Key", apiKey);
@@ -139,7 +140,7 @@ public class NoMem extends ListActivity {
 	}
 
 	private void getNotes() {
-		int user_id = 3;
+		int user_id = 1;
 		try {
 			HttpClient httpClient = new DefaultHttpClient();
 			URI uri = new URI(host+"/notes?user_id="
@@ -158,27 +159,31 @@ public class NoMem extends ListActivity {
 				ByteArrayOutputStream ostream = new ByteArrayOutputStream();
 				response.getEntity().writeTo(ostream);
 				String result = ostream.toString();
+				
 				Log.d("DEBUG", result);
-
+				
 				JSONObject json = new JSONObject(result);
+				
 				Log.d("DEBUG", "<jsonobject>\n" + json.toString()
 						+ "\n</jsonobject>");
+				
 				JSONArray nameArray = json.names();
-				JSONArray valArray = json.toJSONArray(nameArray);
-				for (int i = 0; i < valArray.length(); i++) {
-					Log.d("DEBUG", "<jsonname" + i + ">\n"
-							+ nameArray.getString(i) + "\n</jsonname" + i
-							+ ">\n" + "<jsonvalue" + i + ">\n"
-							+ valArray.getJSONArray(i) + "</jsonvalue" + i
-							+ ">\n");
-
-					String title = valArray.getJSONArray(i).getString(0);
-					String body = valArray.getJSONArray(i).getString(1);
-					Integer id = Integer.parseInt(nameArray.getString(i));
-					Log.d("DEBUG", "Note/" + id + " : " + title + "/" + body);
-					notes.add(new Note(id, title, body));
+				if(json.length() > 1) {
+					JSONArray valArray = json.toJSONArray(nameArray);
+					for (int i = 0; i < valArray.length(); i++) {
+						Log.d("DEBUG", "<jsonname" + i + ">\n"
+								+ nameArray.getString(i) + "\n</jsonname" + i
+								+ ">\n" + "<jsonvalue" + i + ">\n"
+								+ valArray.getJSONArray(i) + "</jsonvalue" + i
+								+ ">\n");
+	
+						String title = valArray.getJSONArray(i).getString(0);
+						String body = valArray.getJSONArray(i).getString(1);
+						Integer id = Integer.parseInt(nameArray.getString(i));
+						Log.d("DEBUG", "Note/" + id + " : " + title + "/" + body);
+						notes.add(new Note(id, title, body));
+					}
 				}
-
 			}
 		} catch (ClientProtocolException e) {
 			// TODO Auto-generated catch block
@@ -222,7 +227,7 @@ public class NoMem extends ListActivity {
 					break;
 				}
 			}
-			addNote(n, 3);
+			addNote(n);
 		}
 	}
 }
