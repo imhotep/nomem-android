@@ -15,6 +15,7 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
@@ -27,6 +28,8 @@ import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -36,14 +39,24 @@ import android.widget.Toast;
 import android.widget.AdapterView.OnItemClickListener;
 
 public class NoMem extends ListActivity {
+	// Menu codes
+	protected static final int MENU_NEW_NOTE = 0;
+	protected static final int MENU_QUIT = 1;
 
+	// Sub-Activity request codes
 	protected static final int EDIT_NOTE_REQUEST_CODE = 100;
+	protected static final int NEW_NOTE_REQUEST_CODE = 200;
+	
+	// Local use
 	private ArrayList<Note> notes = null;
 	private ArrayAdapter<Note> noteAdapter = null;
-	private String host = null;
-	private String apiKey = null;
 	private Runnable viewNotes;
 	private ProgressDialog progressDialog = null;
+	private int currentNoteId;
+	
+	// Configuration stuff
+	private String host = null;
+	private String apiKey = null;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -70,15 +83,15 @@ public class NoMem extends ListActivity {
 		lv.setOnItemClickListener(new OnItemClickListener() {
 			public void onItemClick(AdapterView<?> parent, View view,
 					int position, long id) {
-
+				
+				currentNoteId = ((Note) parent.getAdapter().getItem(position))
+				.getId();
 				// setting data for sub activity
 				Bundle b = new Bundle();
 				b.putString("title", ((Note) parent.getAdapter().getItem(
 						position)).getTitle());
 				b.putString("body", ((Note) parent.getAdapter().getItem(
 						position)).getBody());
-				b.putInt("id", ((Note) parent.getAdapter().getItem(position))
-						.getId());
 
 				Intent i = new Intent(view.getContext(), NoteActivity.class);
 				i.putExtras(b);
@@ -98,8 +111,7 @@ public class NoMem extends ListActivity {
 		}
 	};
 
-
-	private void addNote(Note note) {
+	private void updateNote(Note note) {
 		Integer user_id = 1;
 		try {
 			progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Updating note...", true);
@@ -124,7 +136,7 @@ public class NoMem extends ListActivity {
 			int status = response.getStatusLine().getStatusCode();
 
 			if (status == HttpStatus.SC_OK) {
-				Log.d("DEBUG", "SUCCESS! \\o/");
+				Log.d("DEBUG", "PUT SUCCESS! \\o/");
 			}
 		} catch (ClientProtocolException e) {
 			// TODO Auto-generated catch block
@@ -133,6 +145,69 @@ public class NoMem extends ListActivity {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (URISyntaxException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		runOnUiThread(returnRes);
+	}
+	
+	private void createNote(Note note) {
+		Integer user_id = 1;
+		try {
+			progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Updating note...", true);
+			HttpClient httpClient = new DefaultHttpClient();
+			URI uri = new URI(host+"/notes");
+
+			// setting up POST HTTP parameters
+			List<NameValuePair> postParams = new ArrayList<NameValuePair>(4);
+			postParams
+					.add(new BasicNameValuePair("note[user_id]", user_id.toString()));
+			postParams.add(new BasicNameValuePair("note[title]", note.getTitle()));
+			postParams.add(new BasicNameValuePair("note[body]", note.getBody()));
+
+			HttpPost request = new HttpPost(uri);
+			request.addHeader("API-Key", apiKey);
+			request.addHeader("Accept", "application/json");
+			request.setEntity(new UrlEncodedFormEntity(postParams));
+
+			HttpResponse response;
+			response = httpClient.execute(request);
+			int status = response.getStatusLine().getStatusCode();
+
+			if (status == HttpStatus.SC_OK) {
+				Log.d("DEBUG", "POST SUCCESS! \\o/");
+				ByteArrayOutputStream ostream = new ByteArrayOutputStream();
+				response.getEntity().writeTo(ostream);
+				String result = ostream.toString();
+				
+				Log.d("DEBUG", result);
+				
+				JSONObject json = new JSONObject(result);
+				
+				JSONArray nameArray = json.names();
+				if(json.length() > 1) {
+					JSONArray valArray = json.toJSONArray(nameArray);
+					for (int i = 0; i < valArray.length(); i++) {
+						if(nameArray.getString(i) == "id") {
+							Integer id = Integer.parseInt(valArray.getString(i));
+							Log.d("DEBUG", "Created Note ID: " + id);
+							note.setId(id);
+							notes.add(note);
+							noteAdapter.add(note);
+						}
+					}
+				}
+			}
+		} catch (ClientProtocolException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (URISyntaxException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (JSONException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
@@ -204,30 +279,50 @@ public class NoMem extends ListActivity {
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
-		
-		Log.d("DEBUG", "Request code: " + requestCode + "/" + resultCode + "/"
-				+ data);
-		if (requestCode == EDIT_NOTE_REQUEST_CODE
-				&& resultCode == NoteActivity.SUCCESS_RETURN_CODE) {
+		if (resultCode == NoteActivity.SUCCESS_RETURN_CODE) {
 			Bundle b = data.getExtras();
 			final String title = b.getString("title");
 			final String body = b.getString("body");
-			final int id = b.getInt("id");
-
-			// Log.d("DEBUG", "Note/"+id+" : "+title+"/"+body);
+			Note n = null;
 
 			// finding the right note (maybe there is a better way to do this)
-			Iterator<Note> it = notes.iterator();
-			Note n = null;
-			while (it.hasNext()) {
-				n = it.next();
-				if (n.getId() == id) {
-					n.setTitle(title);
-					n.setBody(body);
-					break;
+			switch(requestCode) {
+			case EDIT_NOTE_REQUEST_CODE:
+				Iterator<Note> it = notes.iterator();
+				while (it.hasNext()) {
+					n = it.next();
+					if (n.getId() == currentNoteId) {
+						n.setTitle(title);
+						n.setBody(body);
+						break;
+					}
 				}
+				updateNote(n);
+				break;
+			case NEW_NOTE_REQUEST_CODE:
+				n = new Note(null, title, body);
+				createNote(n);
+				break;
 			}
-			addNote(n);
 		}
+	}
+
+	public boolean onCreateOptionsMenu(Menu menu) {
+		menu.add(0, MENU_NEW_NOTE, 0, "New Note").setIcon(android.R.drawable.ic_menu_add);
+		menu.add(0, MENU_QUIT, 0, "Quit").setIcon(android.R.drawable.ic_menu_close_clear_cancel);
+		return true;
+	}
+	
+	public boolean onOptionsItemSelected(MenuItem item) {
+		switch(item.getItemId()) {
+		case MENU_NEW_NOTE:
+			Intent i = new Intent(NoMem.this, NoteActivity.class);
+			startActivityForResult(i, NEW_NOTE_REQUEST_CODE);
+			return true;
+		case MENU_QUIT:
+			finish();
+			return true;
+		}
+		return false;
 	}
 }

@@ -18,19 +18,21 @@ public class NoteActivity extends Activity {
 		
 		// getting data from main activity
 		Intent app_intent = getIntent();
-		Bundle data = app_intent.getExtras();
-		String title = data.getString("title");
-		String body = data.getString("body");
-		final int id = data.getInt("id");
-		
-		// setting title
+		final Bundle data = app_intent.getExtras();
 		final EditText titleView = (EditText)findViewById(R.id.titleId);
-		titleView.setText(title);
-		
-		// setting body
 		final EditText bodyView = (EditText)findViewById(R.id.bodyId);
-		bodyView.setText(body);
 		
+		// depending on the intent: new/edit
+		if(data != null) {
+			String title = data.getString("title");
+			String body = data.getString("body");
+			
+			// setting title
+			titleView.setText(title);
+			
+			// setting body
+			bodyView.setText(body);
+		}
 		Button okButton = (Button)findViewById(R.id.ok_btn);
 		Button cancelButton = (Button)findViewById(R.id.cancel_btn);
 
@@ -42,7 +44,6 @@ public class NoteActivity extends Activity {
 				Bundle b = new Bundle();
 				b.putString("title", titleView.getText().toString());
 				b.putString("body", bodyView.getText().toString());
-				b.putInt("id", id);
 				intent.putExtras(b);
 				setResult(SUCCESS_RETURN_CODE, intent);
 				finish();				
