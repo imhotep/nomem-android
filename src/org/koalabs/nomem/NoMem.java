@@ -27,6 +27,7 @@ import android.app.ListActivity;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -57,6 +58,9 @@ public class NoMem extends ListActivity {
 	// Configuration stuff
 	private String host = null;
 	private String apiKey = null;
+	
+	// thread handler
+	final Handler mHandler = new Handler();
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -103,10 +107,17 @@ public class NoMem extends ListActivity {
 		});
 	}
 
-	private Runnable returnRes = new Runnable() {
+	private Runnable mUpdateNotes = new Runnable() {
 		@Override
 		public void run() {
 			progressDialog.dismiss();
+			if(noteAdapter.getCount() < notes.size()) {
+				Log.d("DEBUG", "Adding element to adapter: "+noteAdapter.getCount()+" : notes count:"+notes.size());
+				noteAdapter.add(notes.get(notes.size()-1));
+			}
+			else {
+				Log.d("DEBUG", "NOT Adding element to adapter: "+noteAdapter.getCount()+" : notes count:"+notes.size());
+			}
 			noteAdapter.notifyDataSetChanged();
 		}
 	};
@@ -114,7 +125,6 @@ public class NoMem extends ListActivity {
 	private void updateNote(Note note) {
 		Integer user_id = 1;
 		try {
-			progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Updating note...", true);
 			HttpClient httpClient = new DefaultHttpClient();
 			URI uri = new URI(host+"/notes/"
 					+ note.getId());
@@ -148,13 +158,11 @@ public class NoMem extends ListActivity {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		runOnUiThread(returnRes);
 	}
 	
 	private void createNote(Note note) {
 		Integer user_id = 1;
 		try {
-			progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Updating note...", true);
 			HttpClient httpClient = new DefaultHttpClient();
 			URI uri = new URI(host+"/notes");
 
@@ -174,7 +182,7 @@ public class NoMem extends ListActivity {
 			response = httpClient.execute(request);
 			int status = response.getStatusLine().getStatusCode();
 
-			if (status == HttpStatus.SC_OK) {
+			if (status == HttpStatus.SC_CREATED) {
 				Log.d("DEBUG", "POST SUCCESS! \\o/");
 				ByteArrayOutputStream ostream = new ByteArrayOutputStream();
 				response.getEntity().writeTo(ostream);
@@ -183,17 +191,19 @@ public class NoMem extends ListActivity {
 				Log.d("DEBUG", result);
 				
 				JSONObject json = new JSONObject(result);
-				
-				JSONArray nameArray = json.names();
-				if(json.length() > 1) {
-					JSONArray valArray = json.toJSONArray(nameArray);
-					for (int i = 0; i < valArray.length(); i++) {
-						if(nameArray.getString(i) == "id") {
+				if(json.length() == 1) {
+					JSONObject noteObject = json.getJSONObject("note");
+					JSONArray nameArray = noteObject.names();
+					JSONArray valArray = noteObject.toJSONArray(nameArray);
+					for (int i = 0; i < nameArray.length(); i++) {
+						Log.d("DEBUG", nameArray.getString(i) + "/" +  valArray.getString(i));
+						if(nameArray.getString(i).startsWith("id")) {
 							Integer id = Integer.parseInt(valArray.getString(i));
 							Log.d("DEBUG", "Created Note ID: " + id);
 							note.setId(id);
 							notes.add(note);
-							noteAdapter.add(note);
+							Log.d("DEBUG", "Notes size: "+notes.size());
+							break;
 						}
 					}
 				}
@@ -211,7 +221,6 @@ public class NoMem extends ListActivity {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		runOnUiThread(returnRes);
 	}
 
 	private void getNotes() {
@@ -273,7 +282,7 @@ public class NoMem extends ListActivity {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		runOnUiThread(returnRes);
+		runOnUiThread(mUpdateNotes);
 	}
 
 	@Override
@@ -297,11 +306,26 @@ public class NoMem extends ListActivity {
 						break;
 					}
 				}
-				updateNote(n);
+				final Note updatedNote = n;
+				Runnable updateNoteRunnable = new Runnable() {
+					public void run() {
+						updateNote(updatedNote);
+						mHandler.post(mUpdateNotes);
+					}
+				};
+				progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Updating note...", true);
+				new Thread(updateNoteRunnable).start();
 				break;
 			case NEW_NOTE_REQUEST_CODE:
-				n = new Note(null, title, body);
-				createNote(n);
+				final Note createdNote = new Note(null, title, body);
+				Runnable createNoteRunnable = new Runnable() {
+					public void run() {
+						createNote(createdNote);
+						mHandler.post(mUpdateNotes);
+					}
+				};
+				progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Creating note...", true);
+				new Thread(createNoteRunnable).start();
 				break;
 			}
 		}
