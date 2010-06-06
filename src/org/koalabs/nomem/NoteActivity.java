@@ -10,7 +10,8 @@ import android.widget.EditText;
 public class NoteActivity extends Activity {
 	
 	public static final int SUCCESS_RETURN_CODE = 1;
-	public static final int FAILURE_RETURN_CODE = 2;
+	public static final int DELETE_RETURN_CODE = 2;
+	public static final int CANCEL_RETURN_CODE = 3;
 	
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -34,6 +35,7 @@ public class NoteActivity extends Activity {
 			bodyView.setText(body);
 		}
 		Button okButton = (Button)findViewById(R.id.ok_btn);
+		Button deleteButton = (Button)findViewById(R.id.delete_btn);
 		Button cancelButton = (Button)findViewById(R.id.cancel_btn);
 
 		okButton.setOnClickListener(new View.OnClickListener() {			
@@ -50,11 +52,20 @@ public class NoteActivity extends Activity {
 			}
 		});
 		
+		deleteButton.setOnClickListener(new View.OnClickListener() {			
+			@Override
+			public void onClick(View v) {				
+				Intent intent = new Intent();
+				setResult(DELETE_RETURN_CODE, intent);
+				finish();				
+			}
+		});
+		
 		cancelButton.setOnClickListener(new View.OnClickListener() {			
 			@Override
 			public void onClick(View v) {				
 				Intent intent = new Intent();
-				setResult(FAILURE_RETURN_CODE, intent);
+				setResult(CANCEL_RETURN_CODE, intent);
 				finish();				
 			}
 		});

@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import org.apache.http.HttpResponse;
@@ -14,6 +13,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
@@ -53,7 +53,7 @@ public class NoMem extends ListActivity {
 	private ArrayAdapter<Note> noteAdapter = null;
 	private Runnable viewNotes;
 	private ProgressDialog progressDialog = null;
-	private int currentNoteId;
+	private Note currentNote;
 	
 	// Configuration stuff
 	private String host = null;
@@ -88,8 +88,7 @@ public class NoMem extends ListActivity {
 			public void onItemClick(AdapterView<?> parent, View view,
 					int position, long id) {
 				
-				currentNoteId = ((Note) parent.getAdapter().getItem(position))
-				.getId();
+				currentNote = ((Note) parent.getAdapter().getItem(position));
 				// setting data for sub activity
 				Bundle b = new Bundle();
 				b.putString("title", ((Note) parent.getAdapter().getItem(
@@ -115,8 +114,9 @@ public class NoMem extends ListActivity {
 				Log.d("DEBUG", "Adding element to adapter: "+noteAdapter.getCount()+" : notes count:"+notes.size());
 				noteAdapter.add(notes.get(notes.size()-1));
 			}
-			else {
-				Log.d("DEBUG", "NOT Adding element to adapter: "+noteAdapter.getCount()+" : notes count:"+notes.size());
+			if(noteAdapter.getCount() > notes.size()) {
+				Log.d("DEBUG", "Removing element from adapter: "+noteAdapter.getCount() + " : notes count: "+notes.size());
+				noteAdapter.remove(currentNote);
 			}
 			noteAdapter.notifyDataSetChanged();
 		}
@@ -147,6 +147,36 @@ public class NoMem extends ListActivity {
 
 			if (status == HttpStatus.SC_OK) {
 				Log.d("DEBUG", "PUT SUCCESS! \\o/");
+			}
+		} catch (ClientProtocolException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (URISyntaxException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	private void deleteNote(Note note) {
+		try {
+			HttpClient httpClient = new DefaultHttpClient();
+			URI uri = new URI(host+"/notes/"
+					+ note.getId());
+			
+			HttpDelete request = new HttpDelete(uri);
+			request.addHeader("API-Key", apiKey);
+			request.addHeader("Accept", "application/json");
+
+			HttpResponse response;
+			response = httpClient.execute(request);
+			int status = response.getStatusLine().getStatusCode();
+
+			if (status == HttpStatus.SC_OK) {
+				Log.d("DEBUG", "DELETE SUCCESS! \\o/");
+				notes.remove(currentNote);
 			}
 		} catch (ClientProtocolException e) {
 			// TODO Auto-generated catch block
@@ -292,24 +322,15 @@ public class NoMem extends ListActivity {
 			Bundle b = data.getExtras();
 			final String title = b.getString("title");
 			final String body = b.getString("body");
-			Note n = null;
 
 			// finding the right note (maybe there is a better way to do this)
 			switch(requestCode) {
 			case EDIT_NOTE_REQUEST_CODE:
-				Iterator<Note> it = notes.iterator();
-				while (it.hasNext()) {
-					n = it.next();
-					if (n.getId() == currentNoteId) {
-						n.setTitle(title);
-						n.setBody(body);
-						break;
-					}
-				}
-				final Note updatedNote = n;
+				currentNote.setTitle(title);
+				currentNote.setBody(body);
 				Runnable updateNoteRunnable = new Runnable() {
 					public void run() {
-						updateNote(updatedNote);
+						updateNote(currentNote);
 						mHandler.post(mUpdateNotes);
 					}
 				};
@@ -327,6 +348,17 @@ public class NoMem extends ListActivity {
 				progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Creating note...", true);
 				new Thread(createNoteRunnable).start();
 				break;
+			}
+		} else {
+			if(resultCode == NoteActivity.DELETE_RETURN_CODE && requestCode == EDIT_NOTE_REQUEST_CODE) {
+				Runnable updateNoteRunnable = new Runnable() {
+					public void run() {
+						deleteNote(currentNote);
+						mHandler.post(mUpdateNotes);
+					}
+				};
+				progressDialog = ProgressDialog.show(NoMem.this, "Please wait...", "Deleting note...", true);
+				new Thread(updateNoteRunnable).start();
 			}
 		}
 	}
